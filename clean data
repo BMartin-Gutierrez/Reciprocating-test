@@ -1,0 +1,79 @@
+import numpy as np
+import pandas as pd
+import os.path
+import matplotlib.pyplot as plt
+from numpy.linalg import inv
+
+#file_name = input("Enter file name: ") + ".csv"
+file_name= "MercuryHead_3.csv"
+file_path = os.path.join('C:\\Users\\Brian\\Desktop\\Grad School\\Research\\Wine project\\Testing\\Wine_Linear_7.13.21', file_name)
+
+#turn csv to date frame
+df = pd.read_csv(file_path, skiprows=2, skipfooter=2, engine='python')
+
+#useless_columns =  [" Timestamp"," RecipeStep"," DAQ.Fz (N)", "XYZ.X Velocity (mm/s)", "DAQ.Fx (N)"]
+#df_reduced = df.drop(columns  = useless_columns)
+df_reduced = df[["Step", "DAQ.COF ()", "XYZ.X Position (mm)", "XYZ.X Velocity (mm/s)" ]]
+
+#first_step = df_reduced["Step"][1:]
+#last_step = df_reduced["Step"][-1:]
+first_step = 2
+last_step = 18
+
+cofs = []
+stds = []
+spds = []
+while first_step <= last_step:
+
+
+    meep = df_reduced.loc[df_reduced["Step"] == first_step]
+
+    lower_bound_error = .5
+    upper_bound_error = .25
+    step_size = len(meep)
+    min_len = round(step_size * lower_bound_error)
+    max_len = 1 + round(step_size - (step_size * upper_bound_error))
+    meep = meep.iloc[min_len:max_len]
+
+    average_cof = meep["DAQ.COF ()"].mean()
+    std_cof = meep["DAQ.COF ()"].std()
+    average_speed = meep["XYZ.X Velocity (mm/s)"].mean()
+
+    spds.append(average_speed)
+    stds.append(std_cof)
+    cofs.append(average_cof)
+
+    if first_step % 2 == 0:
+        x= meep["XYZ.X Position (mm)"]
+        y = meep["DAQ.COF ()"]
+    else:
+        x = meep["XYZ.X Position (mm)"].iloc[::-1]
+        y = meep["DAQ.COF ()"]
+    plt.plot(x, y, label = "Step = " + str(first_step))
+    plt.title("COFs for " + file_name)
+
+    first_step +=1
+
+
+#plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
+
+stds1 = stds[0:9]
+stds2 = stds[9:18]
+
+spds1 = spds[0:9]
+spds2 = spds[9:18]
+
+cofs1 = cofs[0:9]
+cofs2 = cofs[9:18]
+
+
+fig = plt.figure()
+plt.errorbar(spds1,cofs1, yerr=stds1, capsize=4, fmt='d''--', label= "First Pass")
+plt.errorbar(spds2,cofs2, yerr=stds2, capsize=4, fmt='o''--', label= "Second Pass")
+
+plt.title("Mercury Head Trial A")
+plt.xlabel("Velocity (mm/s)")
+plt.ylabel("Cof")
+plt.xscale("log")
+plt.legend(loc = "lower right")
+plt.show()
