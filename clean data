@@ -2,78 +2,186 @@ import numpy as np
 import pandas as pd
 import os.path
 import matplotlib.pyplot as plt
-from numpy.linalg import inv
+import matplotlib.gridspec as gridspec
+import matplotlib as mpl
+import seaborn as sns
 
-#file_name = input("Enter file name: ") + ".csv"
-file_name= "MercuryHead_3.csv"
-file_path = os.path.join('C:\\Users\\Brian\\Desktop\\Grad School\\Research\\Wine project\\Testing\\Wine_Linear_7.13.21', file_name)
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['font.size'] = 12
 
-#turn csv to date frame
-df = pd.read_csv(file_path, skiprows=2, skipfooter=2, engine='python')
+files = ["MercuryHead_1", "MercuryHead_2", "MercuryHead_3"]
+final_data = {}
+for file in files:
+    file_name = file + ".csv"
+    file_path = os.path.join(
+        'C:\\Users\\Brian\\Desktop\\Grad School\\Research\\Wine project\\Testing\\Wine_Linear_7.8.21', file_name)
 
-#useless_columns =  [" Timestamp"," RecipeStep"," DAQ.Fz (N)", "XYZ.X Velocity (mm/s)", "DAQ.Fx (N)"]
-#df_reduced = df.drop(columns  = useless_columns)
-df_reduced = df[["Step", "DAQ.COF ()", "XYZ.X Position (mm)", "XYZ.X Velocity (mm/s)" ]]
+    # turn csv to date frame
+    df = pd.read_csv(file_path, skiprows=2, skipfooter=2, engine='python')
 
-#first_step = df_reduced["Step"][1:]
-#last_step = df_reduced["Step"][-1:]
-first_step = 2
-last_step = 18
+    df_reduced = df[["Step", "DAQ.COF ()", "XYZ.X Position (mm)", "XYZ.X Velocity (mm/s)"]]
 
-cofs = []
-stds = []
-spds = []
-while first_step <= last_step:
+    first_step = 2
+    last_step = 18
+
+    cofs = []
+    stds = []
+    spds = []
+    while first_step <= last_step:
+        meep = df_reduced.loc[df_reduced["Step"] == first_step]
+
+        lower_bound_error = .55
+        upper_bound_error = .25
+        step_size = len(meep)
+        min_len = round(step_size * lower_bound_error)
+        max_len = 1 + round(step_size - (step_size * upper_bound_error))
+        meep = meep.iloc[min_len:max_len]
+
+        average_cof = meep["DAQ.COF ()"].mean()
+        std_cof = meep["DAQ.COF ()"].std()
+        average_speed = meep["XYZ.X Velocity (mm/s)"].mean()
+
+        spds.append(average_speed)
+        stds.append(std_cof)
+        cofs.append(average_cof)
+
+        # Check individual data
+        # if first_step % 2 == 0:
+        #     x = meep["XYZ.X Position (mm)"]
+        #     y = meep["DAQ.COF ()"]
+        # else:
+        #     x = meep["XYZ.X Position (mm)"].iloc[::-1]
+        #     y = meep["DAQ.COF ()"]
+        # plt.plot(x, y, label="Step = " + str(first_step))
+        # plt.title("COFs for " + file_name)
+
+        first_step += 1
+
+    # Split speed, deviation, and cofs into first and second passes
+    std_devs = [stds[0:9], stds[9:18]]
+    avg_speeds = [spds[0:9], spds[9:18]]
+    avg_cofs = [cofs[0:9], cofs[9:18]]
+
+    # Dictionary with data from all trials
+    final_data[file] = [std_devs, avg_speeds, avg_cofs]
+
+# order to call dictionary
+# Dictionary > file name > [std_devs, avg_speeds, avg_cofs] > [first pass, second pass]
+
+data = np.array(
+    [final_data[files[0]][2][0], [final_data[files[0]][2][0][0]] + final_data[files[0]][2][1]])
+average_data = np.average(data, axis=0)
+deviation_points = data.std(0)
+
+print(data)
+print(average_data)
 
 
-    meep = df_reduced.loc[df_reduced["Step"] == first_step]
+def panel_plot(final_data, files):
 
-    lower_bound_error = .5
-    upper_bound_error = .25
-    step_size = len(meep)
-    min_len = round(step_size * lower_bound_error)
-    max_len = 1 + round(step_size - (step_size * upper_bound_error))
-    meep = meep.iloc[min_len:max_len]
+    colors = sns.color_palette("rocket", len(files) * 2)
+    fig = plt.figure(1, figsize=(len(files)*5, 5))
+    gs = gridspec.GridSpec(1, len(files))
+    gs.update(wspace=.05, hspace=.05)
 
-    average_cof = meep["DAQ.COF ()"].mean()
-    std_cof = meep["DAQ.COF ()"].std()
-    average_speed = meep["XYZ.X Velocity (mm/s)"].mean()
+    #Counter for for loop
+    a = 0
+    # Letter for titles
+    ch = "A"
+    for file in files:
+        # ************************* Generate first panel *******************************
+        if a == 0:
+            friction_subplot1 = fig.add_subplot(gs[0:1, a:a+1])
+        else:
+            friction_subplot1 = fig.add_subplot(gs[0:1, a:a + 1], sharey= friction_subplot1)
 
-    spds.append(average_speed)
-    stds.append(std_cof)
-    cofs.append(average_cof)
+        plt.errorbar(final_data[file][1][0], final_data[file][2][0], marker="^", markersize=7, alpha=.9,
+                     yerr=final_data[file][0][0], capsize=4, mfc='w', label="First Pass", linestyle="-")
+        plt.errorbar(final_data[file][1][1], final_data[file][2][1], marker="o", markersize=7, alpha=.9,
+                     yerr=final_data[file][0][1], capsize=4, mfc='w', label="Second Pass", linestyle="dotted")
 
-    if first_step % 2 == 0:
-        x= meep["XYZ.X Position (mm)"]
-        y = meep["DAQ.COF ()"]
-    else:
-        x = meep["XYZ.X Position (mm)"].iloc[::-1]
-        y = meep["DAQ.COF ()"]
-    plt.plot(x, y, label = "Step = " + str(first_step))
-    plt.title("COFs for " + file_name)
+        # Tick parameters
+        plt.minorticks_on
 
-    first_step +=1
+        if a == 0:
+            plt.tick_params(which="major", direction="in", length=10, bottom=True, left=True, right=True)
+            plt.tick_params(which="minor", direction="in", length=5, bottom=True, left=True, right=True)
+            #Only need label on first panel
+            plt.ylabel("$\mu$", rotation=0, size=14)
+        else:
+            plt.tick_params(which="major", direction="in", length=10, bottom=True, left=True, right=True,
+                            labelleft=False)
+            plt.tick_params(which="minor", direction="in", length=5, bottom=True, left=True, right=True,
+                            labelleft=False)
 
+        # Create legebd
+        plt.legend()
 
-#plt.legend(bbox_to_anchor=(1, 1), loc=2, borderaxespad=0.)
-
-stds1 = stds[0:9]
-stds2 = stds[9:18]
-
-spds1 = spds[0:9]
-spds2 = spds[9:18]
-
-cofs1 = cofs[0:9]
-cofs2 = cofs[9:18]
+        # Plot titles
+        plt.title("Test" + chr(ord(ch) + a))
 
 
-fig = plt.figure()
-plt.errorbar(spds1,cofs1, yerr=stds1, capsize=4, fmt='d''--', label= "First Pass")
-plt.errorbar(spds2,cofs2, yerr=stds2, capsize=4, fmt='o''--', label= "Second Pass")
+        # Plot Scale
+        # plt.yscale("log")
+        plt.xscale("log")
 
-plt.title("Mercury Head Trial A")
-plt.xlabel("Velocity (mm/s)")
-plt.ylabel("Cof")
-plt.xscale("log")
-plt.legend(loc = "lower right")
+        plt.legend(loc="upper left")
+        plt.grid(which="both", linewidth=.1)
+        a += 1
+
+panel_plot(final_data, files)
+# # ************************* Generate second panel *******************************
+# friction_subplot2 = fig.add_subplot(gs[0:1, 1:2], sharey=friction_subplot1)
+# # First panel plot
+# plt.errorbar(final_data[files[1]][1][0], final_data[files[1]][2][0], marker="^", markersize=7, alpha=.9,
+#              yerr=final_data[files[1]][0][0], capsize=4, mfc='w', label="First Pass", linestyle="-")
+# plt.errorbar(final_data[files[1]][1][1], final_data[files[1]][2][1], marker="o", markersize=7, alpha=.9,
+#              yerr=final_data[files[1]][0][1], capsize=4, mfc='w', label="Second Pass", linestyle="dotted")
+#
+# # Tick parameters
+# plt.minorticks_on
+#
+# plt.tick_params(which="major", direction="in", length=10, bottom=True, left=True, right=True, labelleft=False)
+# plt.tick_params(which="minor", direction="in", length=5, bottom=True, left=True, right=True, labelleft=False)
+#
+# # Create legebd
+# plt.legend()
+#
+# # Plot Labels
+# plt.title("Test 3-B")
+# # plt.ylabel("COF")
+#
+# plt.grid(which="both", linewidth=.1)
+# # Plot Scale
+# # plt.yscale("log")
+# plt.xscale("log")
+# plt.legend(loc="upper left")
+# plt.text(.3, .518, "Speed (mm/s)")
+# # ************************* Generate Third panel *******************************
+# friction_subplot3 = fig.add_subplot(gs[0:1, 2:3], sharey=friction_subplot1)
+# # First panel plot
+# plt.errorbar(final_data[files[2]][1][0], final_data[files[2]][2][0], marker="^", markersize=7, alpha=.9,
+#              yerr=final_data[files[2]][0][0], capsize=4, mfc='w', label="First Pass", linestyle="-")
+# plt.errorbar(final_data[files[2]][1][1], final_data[files[2]][2][1], marker="o", markersize=7, alpha=.9,
+#              yerr=final_data[files[2]][0][1], capsize=4, mfc='w', label="Second Pass", linestyle="dotted")
+#
+# # Tick parameters
+# plt.minorticks_on
+#
+# plt.tick_params(which="major", direction="in", length=10, bottom=True, labelleft=False, right=True)
+# plt.tick_params(which="minor", direction="in", length=5, bottom=True, left=True, labelleft=False, right=True)
+# plt.tick_params(labelleft=False)
+#
+# # Create legebd
+# plt.legend()
+#
+# plt.grid(which="both", linewidth=.1)
+# # Plot Scale
+# plt.title("Test 3-C")
+# # plt.yscale("log")
+# plt.xscale("log")
+#
+# plt.yticks()
+# plt.legend(loc="upper left")
+
 plt.show()
