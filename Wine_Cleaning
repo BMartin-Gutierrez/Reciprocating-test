@@ -1,0 +1,108 @@
+import numpy as np
+import pandas as pd
+import os.path
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import matplotlib as mpl
+
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['font.size'] = 12
+
+files_1 = ["MercuryHead_Reciprocating_Test1"] #, "MercuryHead_Reciprocating_Test2"]
+path_1 = r'C:\Users\bmart\OneDrive\Desktop\Wine_Reciprocating_8.28.21\MercuryHead'
+
+files_2 = ["BareFoot_Reciprocating_Test1", "BareFoot_Reciprocating_Test2", "BareFoot_Reciprocating_Test3"]
+path_2 = r'C:\Users\bmart\OneDrive\Desktop\Wine_Reciprocating_8.28.21\BareFoot'
+
+files_3 = ["BareFoot_Saliva_Reciprocating_Test1", "BareFoot_Saliva_Reciprocating_Test2", "BareFoot_Saliva_Reciprocating_Test3"]
+path_3 = r'C:\Users\bmart\OneDrive\Desktop\Wine_Reciprocating_8.28.21\BareFoot_Saliva'
+
+interval = 40
+
+
+def clean_data(path, files):
+    final_data = {}
+    for file in files:
+        file_name = file + ".csv"
+        file_path = os.path.join(
+            path, file_name)
+
+        # turn csv to date frame
+        df = pd.read_csv(file_path, skiprows=2, usecols=[" Timestamp", "DAQ.COF ()", "XYZ.X Position (mm)"],
+                         engine='python')
+
+        stroke_length = 20
+        speed = .5
+        half_cycle = stroke_length / speed
+
+        current_step = 0
+        last_step = df[" Timestamp"].max() // half_cycle
+
+        lower_bound_error = .79
+        upper_bound_error = .01
+
+        avg_cofs = []
+
+        while current_step < last_step:
+            current_lower_bound = current_step * half_cycle
+            current_upper_bound = (current_step + 1) * half_cycle
+
+            reduced_lower_bound = current_lower_bound + (half_cycle * lower_bound_error)
+            reduced_upper_bound = current_upper_bound - (half_cycle * upper_bound_error)
+
+            print("current Lower Bound: ", current_lower_bound, "current Upper Bound: ", current_upper_bound)
+
+            current_set = df.loc[(df[" Timestamp"] >= current_lower_bound) & (df[" Timestamp"] < current_upper_bound)]
+            print(current_set.size)
+            reduced_set = current_set.loc[
+                (current_set[" Timestamp"] >= reduced_lower_bound) & (current_set[" Timestamp"] < reduced_upper_bound)]
+            print(reduced_set.size)
+            avg_cof = reduced_set["DAQ.COF ()"].mean()
+
+            avg_cofs.append(avg_cof)
+
+            current_step += 1
+
+        final_data[file] = avg_cofs
+
+    # average_data = np.average(data, axis=0)
+    # deviation_points = data.std(0)
+    # print(average_data)
+    # print(deviation_points)
+    return final_data
+
+
+# def averaged_plot(average_data, deviation_points, speeds, labels):
+#     plt.errorbar(speeds, average_data, marker="o", markersize=7, alpha=.8,
+#                  yerr=deviation_points, capsize=4, mfc='w', label=labels, linestyle="-")
+#
+#     plt.tick_params(which="major", direction="in", length=10, bottom=True, left=True, right=True)
+#     plt.tick_params(which="minor", direction="in", length=5, bottom=True, left=True, right=True)
+#     # Only need label on first panel
+#     plt.ylabel("$\mu$", rotation=0, size=14)
+#
+#     plt.legend()
+#
+#     # Plot titles
+#     plt.title("Wine & Saliva Test")
+#
+#     # Plot Scale
+#     # plt.yscale("log")
+#     plt.xscale("log")
+#
+#     plt.legend(loc="upper left")
+#     plt.grid(which="both", linewidth=.1)
+
+data_set1 = clean_data(path_1, files_1)
+# data_set2 = clean_data(path_2, files_2)
+# data_set3 = clean_data(path_3, files_3)
+#
+#
+df_dict1 = pd.DataFrame(data = data_set1)
+# df_dict2 = pd.DataFrame(data = data_set2)
+# df_dict3 = pd.DataFrame(data = data_set3)
+#
+#
+df_dict1.to_csv("dataSet2.16.csv")
+# df_dict2.to_csv("dataSet2.csv")
+# df_dict3.to_csv("dataSet3.csv")
